@@ -81,6 +81,7 @@
                 Select a task to transcript.
                 <select id="document-list" name="document-list" onload="handleDefaultFile(this.value)" onChange="handleDefaultFile(this.value)">
                     <option disabled selected value="msvd"> &#45;&#45; select a dataset &#45;&#45; </option>
+                    <option value="flickr8k">Flickr8k images</option>
                     <option value="msvd">Youtube videos</option>
                 </select>
             </p>
@@ -235,7 +236,7 @@
     function encodeHTML(s) {
         return s.split('&').join('&amp;').split('<').join('&lt;').split('"').join('&quot;').split("'").join('&#39;');
     }
-    function write_interactive_tranlation(field_number) {
+    function write_interactive_caption_video(field_number) {
         var vid_idx = document.getElementById('vidinmt_' + field_number).getAttribute("vid_idx"); //the text area's id
         var hypothesis = null;
 
@@ -370,45 +371,142 @@
         accept_alert.show();
         accept_alert.fadeOut(2000);
     }
-    function showAlignments(aligs, classname) {
-      for (var j = 0; j < aligs.length; j++) {
-        $(aligs[j]).toggleClass(classname, true);
-      }
+
+
+    function write_interactive_caption_image(field_number) {
+        var vid_idx = document.getElementById('img_' + field_number).getAttribute("vid_idx"); //the text area's id
+        var hypothesis = null;
+
+        // Retrieve search options
+        var beam_size = $("#beam-size-slider").data("ionRangeSlider").result.from;
+        var length_norm = $("#length-norm-slider").data("ionRangeSlider").result.from;
+        var coverage_norm = $("#coverage-norm-slider").data("ionRangeSlider").result.from;
+        var alpha_norm = $("#alpha-slider").data("ionRangeSlider").result.from;
+        var php_sampler_url = "sampler_image.php" + "?vid_idx=" + vid_idx + "&beam_size=" + beam_size + "&length_norm=" + length_norm + "&coverage_norm=" + coverage_norm + "&alpha_norm=" + alpha_norm;
+
+            try {
+                //Good Browsers
+                var xmlHttp = new XMLHttpRequest();
+            } catch (e) {
+                //Internet Explorer
+                try {
+                    heatControlRequest = new ActiveXObject("Msxml2.XMLHTTP");
+                } catch (e) {
+                    try {
+                        heatControlRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                    } catch (e) {
+                        alert("Brower not supported");
+                        return false;
+                    }
+                }
+            }
+
+            xmlHttp.open("GET", php_sampler_url, false);
+            xmlHttp.send();
+            hypothesis = document.getElementById('img_hypothesis_' + field_number);
+            hypothesis.value = xmlHttp.responseText;
+            hypothesis.donetyping = function (callback, delay) {
+                delay || (delay = 20);
+                var timeoutReference;
+                var doneTyping = function (elt) {
+                    if (!timeoutReference) return;
+                    timeoutReference = null;
+                    callback(elt);
+                };
+
+                $(document).each(function () {
+                    var self = $(hypothesis);
+                    self.is(':input') && self.on('keyup paste', function (e) {
+                        var code = (e.keyCode || e.which);
+                        if ((code < 48 || code > 90) && code != 32 && code != 188 && code != 190 && code != 173 && code != 171  && (code < 96 || code > 111)) return;
+                        if (timeoutReference) clearTimeout(timeoutReference);
+                        timeoutReference = setTimeout(function () {
+                            doneTyping(self);
+                        }, delay);
+                    }).on('blur', function () {
+                        doneTyping(self);
+                    });
+                });
+                return hypothesis;
+            };
+            hypothesis.donetyping(function () {
+                var vid_idx = document.getElementById('img_' + field_number).getAttribute("vid_idx"); //the text area's id
+                var transcription_inmt_field = hypothesis; // document.getElementById('hypothesis_' + field_number); //$('#transcription-inmt');
+                var prefix = transcription_inmt_field.value;
+                var startPosition = transcription_inmt_field.selectionStart;
+
+                if (startPosition > 0){
+                    var prefix2 = prefix.slice(0, startPosition).replace(/ /gi, "%20");
+                    var php_sampler_url = "inmt_sampler_image.php" + "?vid_idx=" + vid_idx + "&prefix=" + prefix2 + '&learn=False' + "&beam_size=" + beam_size + "&length_norm=" + length_norm + "&coverage_norm=" + coverage_norm + "&alpha_norm=" + alpha_norm;
+                    try {
+                        //Good Browsers
+                        var xmlHttp = new XMLHttpRequest();
+                    } catch (e) {
+                        //Internet Explorer
+                        try {
+                            heatControlRequest = new ActiveXObject("Msxml2.XMLHTTP");
+                        } catch (e) {
+                            try {
+                                heatControlRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                            } catch (e) {
+                                alert("Brower not supported");
+                                return false;
+                            }
+                        }
+                    }
+                    xmlHttp.open("GET", php_sampler_url, false);
+                    xmlHttp.send();
+                    $(transcription_inmt_field).val(xmlHttp.responseText);
+                    transcription_inmt_field.selectionStart = startPosition;
+                    transcription_inmt_field.selectionEnd = startPosition;
+                    }
+            });
     }
-    function hideAlignments(aligs, classname) {
-      for (var j = 0; j < aligs.length; j++) {
-        $(aligs[j]).toggleClass(classname, false);
-      }
-    }
-    // add alignment events so that aligned words are highlighted
-    function addAlignmentEvents($node, spans, aligids) {
-      // add mouseenter mouseleave events to token spans
-      for (var i = 0; i < spans.length; i++) {
-        var $span = $(spans[i]);
-        var data = $span.data('alignments');
-        if (!data) {
-          $span.off('.alignments');
-          $span.on('mouseenter.alignments', function (e) {
-            var aligs = $(e.target).data('alignments').alignedIds;
-            self.showAlignments(aligs, 'mouse-align');
-        $(this).toggleClass('mouse-align',true);
-          });
-          $span.on('mouseleave.alignments', function (e) {
-            var aligs = $(e.target).data('alignments').alignedIds;
-            self.hideAlignments(aligs, 'mouse-align');
-        $(this).toggleClass('mouse-align',false);
-          });
+    function accept_transcription_image(field_number) {
+
+        var vid_idx = document.getElementById('img_' + field_number).getAttribute("vid_idx");
+        var hypothesis = document.getElementById('img_hypothesis_' + field_number).value;
+
+        // Retrieve search options
+        var beam_size = $("#beam-size-slider").data("ionRangeSlider").result.from;
+        var length_norm = $("#length-norm-slider").data("ionRangeSlider").result.from;
+        var coverage_norm = $("#coverage-norm-slider").data("ionRangeSlider").result.from;
+        var alpha_norm = $("#alpha-slider").data("ionRangeSlider").result.from;
+
+        if (trimAll(hypothesis) === '') {
+            var inmt_empty_string = $('#inmtemptystring');
+            inmt_empty_string.show();
+            inmt_empty_string.fadeOut(2000);
         }
-        else {
-          $span[0].removeEventListener('DOMNodeRemoved', data.onremove, false);
+        var learn_from_sample = $('#ol_checkbox_' + field_number + ':checked').val();
+
+        if (learn_from_sample == 'True') {
+            var php_sampler_url = "inmt_sampler_image.php" + "?vid_idx=" + vid_idx + "&prefix=" + hypothesis + '&learn=' + learn_from_sample + "&beam_size=" + beam_size + "&length_norm=" + length_norm + "&coverage_norm=" + coverage_norm + "&alpha_norm=" + alpha_norm;
+
+            try {
+                //Good Browsers
+                var xmlHttp = new XMLHttpRequest();
+            } catch (e) {
+                //Internet Explorer
+                try {
+                    heatControlRequest = new ActiveXObject("Msxml2.XMLHTTP");
+                } catch (e) {
+                    try {
+                        heatControlRequest = new ActiveXObject("Microsoft.XMLHTTP");
+                    } catch (e) {
+                        alert("Brower not supported");
+                        return false;
+                    }
+                }
+            }
+            xmlHttp.open("GET", php_sampler_url, false);
+            xmlHttp.send();
         }
-        data = { alignedIds: aligids[i] };
-        data.onremove = function(alignedIds) {
-          return function(e) { self.hideAlignments(alignedIds, 'mouse-align caret-align'); }
-        }(data.alignedIds);
-        $span[0].addEventListener('DOMNodeRemoved', data.onremove, false);
-        $span.data('alignments', data);
-      }
+
+        var accept_alert = $('#accept');
+        accept_alert.text('Image #' + field_number + ' validated.');
+        accept_alert.show();
+        accept_alert.fadeOut(2000);
     }
 
 </script>
@@ -613,11 +711,17 @@
 //    document.getElementById('files').addEventListener('change', handleFileSelect, false);
     function handleDefaultFile(url) {
         // Hardcoded samples. TODO: Find a better way for doing this
-        var msvd_table = "<table  id=\"DisplayTable\"  style=\"width: 100%; overflow: auto; display: absolute;\"><tr><td style=\"text-align:right; padding-right:100px\"><div style=\"margin-left:7%; margin-right:0;\">Video #1</div></td></tr><tr><td  style=\"text-align:right; padding-right:100px\"> <iframe id=\"vidinmt_0\" vid_idx=0 src=\"https://www.youtube.com/embed/TsLi3zZESXM\" width=\"100%\" height=\"320\" modestbranding=\"1\" autohide=\"1\" rel=\"0\" frameborder=\"0\" allow=\"encrypted-media\" allowfullscreen></iframe> </td><td><textarea  width=\"100%\" height=\"320\"  name=\"hypothesis_0\" id=\"hypothesis_0\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></td></tr><tr><td><div style=\"float: right; padding-right:100px\"><form onsubmit=\"write_interactive_tranlation(0); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:100px\"><form onsubmit=\"accept_transcription(0); return false;\">Learn from sample <input type=\"checkbox\" name=\"OL-checkbox_\"0\" id=\"ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr> <tr><td style=\"text-align:right; padding-right:100px\"><div style=\"margin-left:7%\">Video #2</div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"> <iframe  id=\"vidinmt_1\" vid_idx=2 src=\"https://www.youtube.com/embed/QoYQVSqyCwE\" width=\"7%\" height=\"320\" frameborder=\"0\" allow=\"encrypted-media\" allowfullscreen></iframe> </td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"hypothesis_1\" id=\"hypothesis_1\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:100px\"><form onsubmit=\"write_interactive_tranlation(1); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:100px\"><form onsubmit=\"accept_transcription(1); return false;\">Learn from sample <input type=\"checkbox\" name=\"OL-checkbox_\"1\" id=\"ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"><div style=\"margin-left:7%\">Video #3</div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"> <iframe  id=\"vidinmt_2\" vid_idx=3 src=\"https://www.youtube.com/embed/9kLaatqBr9s\" width=\"7%\" height=\"320\" frameborder=\"0\" allow=\"encrypted-media\" allowfullscreen></iframe> </td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"hypothesis_2\" id=\"hypothesis_2\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:100px\"><form onsubmit=\"write_interactive_tranlation(2); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:100px\"><form onsubmit=\"accept_transcription(2); return false;\">Learn from sample <input type=\"checkbox\" name=\"OL-checkbox_\"2\" id=\"ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"><div style=\"margin-left:7%\">Video #4</div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"> <iframe  id=\"vidinmt_3\" vid_idx=4 src=\"https://www.youtube.com/embed/LaXXnfKYZlU\" width=\"7%\" height=\"320\" frameborder=\"0\" allow=\"encrypted-media\" allowfullscreen></iframe> </td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"hypothesis_3\" id=\"hypothesis_3\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:100px\"><form onsubmit=\"write_interactive_tranlation(3); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:100px\"><form onsubmit=\"accept_transcription(3); return false;\">Learn from sample <input type=\"checkbox\" name=\"OL-checkbox_\"3\" id=\"ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"><div style=\"margin-left:7%\">Video #5</div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"> <iframe  id=\"vidinmt_4\" vid_idx=5 src=\"https://www.youtube.com/embed/erT_gCgsqFU\" width=\"7%\" height=\"320\" frameborder=\"0\" allow=\"encrypted-media\" allowfullscreen></iframe> </td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"hypothesis_4\" id=\"hypothesis_4\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:100px\"><form onsubmit=\"write_interactive_tranlation(4); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:100px\"><form onsubmit=\"accept_transcription(4); return false;\">Learn from sample <input type=\"checkbox\" name=\"OL-checkbox_\"4\" id=\"ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr></table>";
+        var msvd_table = "<table  id=\"DisplayTable\"  style=\"width: 100%; overflow: auto; display: absolute;\"><tr><td style=\"text-align:right; padding-right:100px\"><div style=\"margin-left:7%; margin-right:0;\">Video #1</div></td></tr><tr><td  style=\"text-align:right; padding-right:100px\"> <iframe id=\"vidinmt_0\" vid_idx=0 src=\"https://www.youtube.com/embed/TsLi3zZESXM\" width=\"100%\" height=\"320\" modestbranding=\"1\" autohide=\"1\" rel=\"0\" frameborder=\"0\" allow=\"encrypted-media\" allowfullscreen></iframe> </td><td><textarea  width=\"100%\" height=\"320\"  name=\"hypothesis_0\" id=\"hypothesis_0\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></td></tr><tr><td><div style=\"float: right; padding-right:100px\"><form onsubmit=\"write_interactive_caption_video(0); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:100px\"><form onsubmit=\"accept_transcription(0); return false;\">Learn from sample <input type=\"checkbox\" name=\"OL-checkbox_\"0\" id=\"ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr> <tr><td style=\"text-align:right; padding-right:100px\"><div style=\"margin-left:7%\">Video #2</div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"> <iframe  id=\"vidinmt_1\" vid_idx=2 src=\"https://www.youtube.com/embed/QoYQVSqyCwE\" width=\"7%\" height=\"320\" frameborder=\"0\" allow=\"encrypted-media\" allowfullscreen></iframe> </td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"hypothesis_1\" id=\"hypothesis_1\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:100px\"><form onsubmit=\"write_interactive_caption_video(1); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:100px\"><form onsubmit=\"accept_transcription(1); return false;\">Learn from sample <input type=\"checkbox\" name=\"OL-checkbox_\"1\" id=\"ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"><div style=\"margin-left:7%\">Video #3</div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"> <iframe  id=\"vidinmt_2\" vid_idx=3 src=\"https://www.youtube.com/embed/9kLaatqBr9s\" width=\"7%\" height=\"320\" frameborder=\"0\" allow=\"encrypted-media\" allowfullscreen></iframe> </td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"hypothesis_2\" id=\"hypothesis_2\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:100px\"><form onsubmit=\"write_interactive_caption_video(2); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:100px\"><form onsubmit=\"accept_transcription(2); return false;\">Learn from sample <input type=\"checkbox\" name=\"OL-checkbox_\"2\" id=\"ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"><div style=\"margin-left:7%\">Video #4</div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"> <iframe  id=\"vidinmt_3\" vid_idx=4 src=\"https://www.youtube.com/embed/LaXXnfKYZlU\" width=\"7%\" height=\"320\" frameborder=\"0\" allow=\"encrypted-media\" allowfullscreen></iframe> </td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"hypothesis_3\" id=\"hypothesis_3\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:100px\"><form onsubmit=\"write_interactive_caption_video(3); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:100px\"><form onsubmit=\"accept_transcription(3); return false;\">Learn from sample <input type=\"checkbox\" name=\"OL-checkbox_\"3\" id=\"ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"><div style=\"margin-left:7%\">Video #5</div></td></tr><tr><td style=\"text-align:right; padding-right:100px\"> <iframe  id=\"vidinmt_4\" vid_idx=5 src=\"https://www.youtube.com/embed/erT_gCgsqFU\" width=\"7%\" height=\"320\" frameborder=\"0\" allow=\"encrypted-media\" allowfullscreen></iframe> </td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"hypothesis_4\" id=\"hypothesis_4\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:100px\"><form onsubmit=\"write_interactive_caption_video(4); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:100px\"><form onsubmit=\"accept_transcription(4); return false;\">Learn from sample <input type=\"checkbox\" name=\"OL-checkbox_\"4\" id=\"ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr></table>";
+
+        var flick8k_table = "<table  id=\"DisplayTable\"  style=\"width: 100%; overflow: auto; display: absolute;\"><tr><td style=\"text-align:right; padding-right:3%\"><div style=\"margin-left:7%; margin-right:0;\">Image #1</div></td></tr><tr><td  style=\"text-align:right; padding-right:3%\">  <img style=\"height: 80%; width: 80%; max-height: 420px; object-fit: contain\" id=\"img_0\" vid_idx=0 src=\"Flickr8k_samples/3385593926_d3e9c21170.jpg\" alt=\"Image_1\"> </td><td><textarea  width=\"100%\"  name=\"img_hypothesis_0\" id=\"img_hypothesis_0\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></td></tr><tr><td><div style=\"float: right; padding-right:3%\"><form onsubmit=\"write_interactive_caption_image(0); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:3%\"><form onsubmit=\"accept_transcription_image(0); return false;\">Learn from sample <input type=\"checkbox\" name=\"img_OL-checkbox_\"0\" id=\"img_ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr> <tr><td style=\"text-align:right; padding-right:3%\"><div style=\"margin-left:7%\">Image #2</div></td></tr><tr><td style=\"text-align:right; padding-right:3%\">  <img style=\"height: 80%; width: 80%; max-height: 420px; object-fit: contain\" id=\"img_1\" vid_idx=1 src=\"Flickr8k_samples/2677656448_6b7e7702af.jpg\" alt=\"Image_2\"> </td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"img_hypothesis_1\" id=\"img_hypothesis_1\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:3%\"><form onsubmit=\"write_interactive_caption_image(1); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:3%\"><form onsubmit=\"accept_transcription_image(1); return false;\">Learn from sample <input type=\"checkbox\" name=\"img_OL-checkbox_\"1\" id=\"img_ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr><tr><td style=\"text-align:right; padding-right:3%\"><div style=\"margin-left:7%\">Image #3</div></td></tr><tr><td style=\"text-align:right; padding-right:3%\">  <img style=\"height: 80%; width: 80%; max-height: 420px; object-fit: contain\" id=\"img_2\" vid_idx=2 src=\"Flickr8k_samples/311146855_0b65fdb169.jpg\" alt=\"Image_3\"> </td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"img_hypothesis_2\" id=\"img_hypothesis_2\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:3%\"><form onsubmit=\"write_interactive_caption_image(2); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:3%\"><form onsubmit=\"accept_transcription_image(2); return false;\">Learn from sample <input type=\"checkbox\" name=\"img_OL-checkbox_\"2\" id=\"img_ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr><tr><td style=\"text-align:right; padding-right:3%\"><div style=\"margin-left:7%\">Image #4</div></td></tr><tr><td style=\"text-align:right; padding-right:3%\"> <img style=\"height: 80%; width: 80%;  max-height: 420px; object-fit: contain\" id=\"img_3\" vid_idx=3 src=\"Flickr8k_samples/1258913059_07c613f7ff.jpg\" alt=\"Image_4\"></td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"img_hypothesis_3\" id=\"img_hypothesis_3\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:3%\"><form onsubmit=\"write_interactive_caption_image(3); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:3%\"><form onsubmit=\"accept_transcription_image(3); return false;\">Learn from sample <input type=\"checkbox\" name=\"img_OL-checkbox_\"3\" id=\"img_ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr><tr><td style=\"text-align:right; padding-right:3%\"><div style=\"margin-left:7%\">Image #5</div></td></tr><tr><td style=\"text-align:right; padding-right:3%\">  <img style=\"height: 80%; width: 80%;  max-height: 420px; object-fit: contain\" id=\"img_4\" vid_idx=4 src=\"Flickr8k_samples/241347760_d44c8d3a01.jpg\" alt=\"Image_5\"></td><td><div style=\"margin-left:7% class=\"source item\"><textarea name=\"img_hypothesis_4\" id=\"img_hypothesis_4\"placeholder=\"Click in the transcript button to obtain a transcription.\"></textarea></div></td></tr><tr><td><div style=\"float: right; padding-right:3%\"><form onsubmit=\"write_interactive_caption_image(4); return false;\"><button type=\"submit\" class=\"button\">Transcript!</button></form></div></td><td><div style=\"float: left; padding-right:3%\"><form onsubmit=\"accept_transcription_image(4); return false;\">Learn from sample <input type=\"checkbox\" name=\"img_OL-checkbox_\"4\" id=\"img_ol_checkbox_0\" value=\"True\" checked> <button type=\"submit\" class=\"button\">Accept transcription</button></form></div></td></tr></table>";
+
 
 
         if (url == 'msvd'){
             DisplayArea.innerHTML = msvd_table;
+        }
+        if (url == 'flickr8k'){
+            DisplayArea.innerHTML = flick8k_table;
         }
 }
 </script>
