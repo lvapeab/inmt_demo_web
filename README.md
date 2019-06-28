@@ -1,6 +1,6 @@
-# Interactive Neural Machine Translation web demo
+# Interactive Multimodal Sequence-to-sequence web demo
 
-This is a web demo of an interactive, adaptive neural machine translation system built with [NMT Keras](https://github.com/lvapeab/nmt-keras).
+This is a web demo of interactive, adaptive neural multimodal systems built with [NMT Keras](https://github.com/lvapeab/nmt-keras) and [Interactive Keras Captioning](https://github.com/lvapeab/interactive-keras-captioning).
 
 ![](https://github.com/lvapeab/inmt_demo_web/blob/master/demo-web/images/demo-system.gif)
 
@@ -13,7 +13,7 @@ The system follows a client-server architecture. The main files are:
 - **sampler.php** and **inmt_sampler.php** query the server to get a translation (given a validated prefix or not).
 - The `images` and `assets` directories contain some visual resources. 
 
-## How to run a demo server (see [NMT Keras](https://github.com/lvapeab/nmt-keras))
+## How to run a demo server (see [NMT Keras](https://github.com/lvapeab/nmt-keras/tree/master/demo-web))
 
 In order to provide high response rate and translation speed, it is highly recommended that the server has a GPU available.
 By default, the server requires the `InteractiveNMT` branch from the [Multimodal Keras Wrapper](https://github.com/lvapeab/staged_keras_wrapper/tree/Interactive_NMT).
@@ -46,4 +46,4 @@ $url = 'http://localhost:6542/?source='.urlencode($source).'&prefix='.urlencode(
 should point to your sample_server port.
 
 
-[Check out the demo!](http://casmacat.prhlt.upv.es/inmt).
+[Check out the demo!](http://casmacat.prhlt.upv.es/interactive-seq2seq/).
